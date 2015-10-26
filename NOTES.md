@@ -15,10 +15,22 @@ Existing protocols
       p<sub>1</sub>, ... p<sub>n</sub> when each p<sub>i</sub> has all messages
       except p<sub>i</sub> stored
     * All messages are decoded (and possibly re-encoded) before being forwarded
+    * Packets are never delayed
   + Learning Neighbor State
     * When info from reception reports is unavailable, routers guess
     * Uses delivery probability (e.g., ETX)
     * Already present in some link-state routing protocols (?)
+    * Incorrect guessing requires retransmission
+  + Uses per-packet ACKs
+    * 802.11 synchroous ACKs for uncoded packets
+    * Asynchronous and bundled with Tx's or reception reports for coded packets
+  + Header between MAC and IP
+    1. # of packets XORed
+    2. IDs (source\_addr/IP\_seq\_num hash) of packets XORed
+    3. # of reception reports
+    4. Tuples of {ip\_addr, last heard seq\_num, bitmap of previous 8 seq\_nums}
+    5. # of ACKS
+    6. Tuples of {source\_mac\_addr, neighbor\_seq\_num, 8-bit bitmap}
 - CORE<sup>[2](NOTES.md#krigslund13)</sup>
 
 References
