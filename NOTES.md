@@ -142,4 +142,4 @@ References
    in Proceedings of the IEEE , vol.99, no.3, pp.490-512, March 2011
    <br/>URL: http://ieeexplore.ieee.org/stamp/stamp.jsp?tp=&arnumber=5688180&isnumber=5715583
 9. <a label="kim13"/>
-   <br/>URL: http://www.researchgate.net/publication/233871428\_Network\_Coded\_TCP\_(CTCP)
+   <br/>URL: http://www.researchgate.net/publication/233871428_Network_Coded_TCP_(CTCP)
