@@ -73,6 +73,8 @@ int main(int argc, char **argv) {
   size_t nencs = atoi(argv[1]);
   struct rlnc_word *msgs[nmsgs];
   struct rlnc_codeword *encs[nencs];
+  struct rlnc_cwvector *cwv = NULL;
+  struct rlnc_word **dec = NULL;
 
   for(i = 0; i < nmsgs; ++i)
     msgs[i] = rlnc_make_word((uint8_t*)argv[i+2], strlen(argv[i+2]), i);
@@ -87,6 +89,10 @@ int main(int argc, char **argv) {
     printf("%d:", i);
     print_rlnc_codeword(encs[i]);
   }
+
+  cwv = rlnc_make_cwvector(encs, nencs);
+  dec = rlnc_decode_cwvector(cwv);
+  rlnc_free_cwvector(cwv);
 
   for(i = 0; i < nmsgs; ++i)
     rlnc_free_word(msgs[i]);

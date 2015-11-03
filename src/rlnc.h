@@ -26,6 +26,7 @@ struct rlnc_word {
 
 struct rlnc_cwvector {
   size_t msgid_max;
+  size_t wordsz;
   size_t len, cap;
   struct rlnc_codeword **cws;
 };
@@ -38,6 +39,7 @@ struct rlnc_word *rlnc_make_word(uint8_t *msg, size_t msglen, uint8_t msgid);
 void rlnc_free_word(struct rlnc_word *w);
 
 struct rlnc_cwvector *rlnc_make_cwvector(struct rlnc_codeword **cws, size_t ncws);
+struct rlnc_word **rlnc_decode_cwvector(struct rlnc_cwvector *cwv);
 void rlnc_free_cwvector(struct rlnc_cwvector *v);
 
 #endif
