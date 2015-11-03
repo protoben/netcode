@@ -3,6 +3,6 @@ CFLAGS	= -Wall -g
 LDFLAGS	= -lm
 CPPFLAGS=
 
-%.o:
-	@echo CC $(patsubst %.o,%.c,$@)
-	@${CC} ${CFLAGS} ${CPPFLAGS} -c -o $@ $(patsubst %.o,%.c,$@) ${LDFLAGS}
+%.o: %.c %.h
+	@echo CC $<
+	@${CC} ${CFLAGS} ${CPPFLAGS} -c -o $@ $< ${LDFLAGS}

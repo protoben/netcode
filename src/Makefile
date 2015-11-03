@@ -1,6 +1,6 @@
 include Defs.mk
 
-SRCS	= $(shell echo *.c)
+SRCS	= $(filter-out main.c,$(shell echo *.c))
 OBJS	= $(patsubst %.c,%.o,${SRCS})
 
 NAME	= rlnc
@@ -9,7 +9,7 @@ NAME	= rlnc
 
 all: ${NAME}
 
-${NAME}: ${OBJS}
+${NAME}: main.c ${OBJS}
 	${CC} ${CPPFLAGS} ${CFLAGS} -o ${NAME} $^ ${LDFLAGS}
 
 test: ${OBJS}
