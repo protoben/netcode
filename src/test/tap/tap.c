@@ -114,20 +114,18 @@ _gen_result(int ok, const char *func, const char *file, unsigned int line,
         /* Make sure the test name contains more than digits
            and spaces.  Emit an error message and exit if it
            does */
-        if(local_test_name) {
-                name_is_digits = 1;
-                for(c = local_test_name; *c != '\0'; c++) {
-                        if(!isdigit((unsigned char)*c)
-                           && !isspace((unsigned char)*c)) {
-                                name_is_digits = 0;
-                                break;
-                        }
+        name_is_digits = 1;
+        for(c = local_test_name; *c != '\0'; c++) {
+                if(!isdigit((unsigned char)*c)
+                   && !isspace((unsigned char)*c)) {
+                        name_is_digits = 0;
+                        break;
                 }
+        }
 
-                if(name_is_digits) {
-                        _diag("    You named your test '%s'.  You shouldn't use numbers for your test names.", local_test_name);
-                        _diag("    Very confusing.");
-                }
+        if(name_is_digits) {
+                _diag("    You named your test '%s'.  You shouldn't use numbers for your test names.", local_test_name);
+                _diag("    Very confusing.");
         }
 
 	if(!ok) {
