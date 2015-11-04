@@ -62,7 +62,7 @@ void print_rlnc_word(struct rlnc_word *w) {
 }
 
 int main(int argc, char **argv) {
-  int i;
+  int i, err;
 
   if(argc < 3) {
     fprintf(stderr, "Usage: %s <num_encodings> <msg_string> ...\n", argv[0]);
@@ -73,11 +73,10 @@ int main(int argc, char **argv) {
   size_t nencs = atoi(argv[1]);
   struct rlnc_word *msgs[nmsgs];
   struct rlnc_codeword *encs[nencs];
-  struct rlnc_cwvector *cwv = NULL;
-  struct rlnc_word **dec = NULL;
+  struct rlnc_codebook *cb = NULL;
 
   for(i = 0; i < nmsgs; ++i)
-    msgs[i] = rlnc_make_word((uint8_t*)argv[i+2], strlen(argv[i+2]), i);
+    msgs[i] = rlnc_make_word((uint8_t*)argv[i+2], strlen(argv[i+2]), (i*2)%nmsgs);
 
   for(i = 0; i < nmsgs; ++i)
     print_rlnc_word(msgs[i]);
@@ -90,13 +89,16 @@ int main(int argc, char **argv) {
     print_rlnc_codeword(encs[i]);
   }
 
-  cwv = rlnc_make_cwvector(encs, nencs);
-  dec = rlnc_decode_cwvector(cwv);
-  rlnc_free_cwvector(cwv);
+  cb = rlnc_make_codebook(encs, nencs);
+  for(i = 0; i < nencs; ++i)
+    rlnc_add_to_codebook(cb, encs[i]);
+  err = rlnc_decode_codebook(cb);
+  printf("codebook %s ready to decode\n", err ? "is not" : "is");
 
   for(i = 0; i < nmsgs; ++i)
     rlnc_free_word(msgs[i]);
   for(i = 0; i < nencs; ++i)
     rlnc_free_codeword(encs[i]);
+  rlnc_free_codebook(cb);
   return 0;
 }

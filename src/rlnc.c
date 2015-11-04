@@ -1,14 +1,24 @@
 #include "rlnc.h"
 
-typedef struct matrix {
-  size_t rows, cols;
-  uint8_t **elems;
-} M;
+#define CODEBOOK_CAP_MAX (256)
+#define CODEBOOK_CAP_MIN (8)
+#define MIN(x, y) (((x) < (y)) ? (x) : (y))
+#define PSWAP(x, y) do{void *_t = x; x = y; y = _t;}while(0)
 
-static M *make_matrix(size_t cols, size_t rows) {
+static ssize_t idx_in_list(uint8_t needle, uint8_t *haystack, size_t len) {
+  size_t i;
+
+  for(i = 0; i < len; ++i)
+    if(haystack[i] == needle)
+      return (size_t)i;
+
+  return -1;
+}
+
+static struct rlnc_matrix *make_matrix(size_t cols, size_t rows) {
   int i;
 
-  M *res = malloc(sizeof *res);
+  struct rlnc_matrix *res = malloc(sizeof *res);
   res->elems = malloc_or_die(rows * sizeof(*res->elems));
   for(i = 0; i < rows; ++i)
     res->elems[i] = malloc_or_die(cols * sizeof(**res->elems));
@@ -18,7 +28,7 @@ static M *make_matrix(size_t cols, size_t rows) {
   return res;
 }
 
-static void print_matrix(M *m) {
+static void print_matrix(struct rlnc_matrix *m) {
   size_t x, y;
 
   printf("M: %lux%lu\n", m->rows, m->cols);
@@ -41,10 +51,7 @@ static inline void scale_and_add_vector(uint8_t *dst, uint8_t *v, uint8_t c, siz
       dst[i] = gf256_mul(dst[i], c);
 }
 
-#define MIN(x, y) (((x) < (y)) ? (x) : (y))
-#define MAX(x, y) (((x) > (y)) ? (x) : (y))
-#define PSWAP(x, y) do{void *_t = x; x = y; y = _t;}while(0)
-static void gauss_jordan(M *m) {
+static void gauss_jordan(struct rlnc_matrix *m) {
   const size_t rows = m->rows, cols = m->cols;
   uint8_t **e = m->elems;
   size_t dim = MIN(rows, cols);
@@ -70,7 +77,7 @@ static void gauss_jordan(M *m) {
   }
 }
 
-static void free_matrix(M *m) {
+static void free_matrix(struct rlnc_matrix *m) {
   int i;
   for(i = 0; i < m->rows; ++i)
     free(m->elems[i]);
@@ -149,58 +156,151 @@ void rlnc_free_word(struct rlnc_word *w) {
   free(w);
 }
 
-struct rlnc_cwvector *rlnc_make_cwvector(struct rlnc_codeword **cws, size_t ncws) {
-  struct rlnc_cwvector *res = malloc_or_die(sizeof *res);
-  size_t cap, i, j;
-
-  for(cap = 1; ncws > cap; cap <<= 1)
-    if(!cap || cap > CWVECTOR_CAP_MAX)
-      die(0, "A cwvector can only hold %lu messages, not %lu", CWVECTOR_CAP_MAX, ncws);
-
-  res->cap = cap;
-  res->len = ncws;
-  res->cws = malloc_or_die(ncws * sizeof(*res->cws));
-  res->msgid_max = 0;
-  res->wordsz = 0;
-
-  for(i = 0; i < ncws; ++i) {
-    res->cws[i] = rlnc_copy_codeword(cws[i]);
-    for(j = 0; j < res->cws[i]->nwords; ++j)
-      if(res->cws[i]->msgids[j]+1 > res->msgid_max)
-        res->msgid_max = res->cws[i]->msgids[j]+1;
-    if(res->cws[i]->wordsz > res->wordsz)
-      res->wordsz = res->cws[i]->wordsz;
-  }
+struct rlnc_codebook *rlnc_make_codebook() {
+  struct rlnc_codebook *res = malloc_or_die(sizeof *res);
+  *res = (struct rlnc_codebook){
+    .is_decoded = false,
+    .decoder = NULL,
+    .decoded = NULL,
+    .msgidlen = 0,
+    .msgidcap = CODEBOOK_CAP_MIN,
+    .msgids = malloc_or_die(CODEBOOK_CAP_MIN * sizeof(*res->msgids)),
+    .cwlen = 0,
+    .cwcap = CODEBOOK_CAP_MIN,
+    .cws = malloc_or_die(CODEBOOK_CAP_MIN * sizeof(*res->cws)),
+    .wordsz = 0,
+  };
 
   return res;
 }
 
-struct rlnc_word **rlnc_decode_cwvector(struct rlnc_cwvector *cwv) {
-  struct rlnc_word **res = NULL;
-  M *m = make_matrix(cwv->msgid_max + cwv->wordsz, cwv->len);
-  size_t x, y, i;
+void rlnc_add_to_codebook(struct rlnc_codebook *cb, struct rlnc_codeword *cw) {
+  size_t i;
+  ssize_t idx;
 
-  for(y = 0; y < m->rows; ++y) {
-    memset(m->elems[y], 0, m->cols * sizeof(*m->elems[y]));
-    for(x = 0; x < cwv->msgid_max; ++x)
-      for(i = 0; i < cwv->cws[y]->nwords; ++i)
-        if(cwv->cws[y]->msgids[i] == x)
-          m->elems[y][x] = cwv->cws[y]->coeffs[i];
-    for(; x < m->cols; ++x)
-      m->elems[y][x] = cwv->cws[y]->word[x - cwv->msgid_max];
+  for(i = 0; i < cw->nwords; ++i) {
+    idx = idx_in_list(cw->msgids[i], cb->msgids, cb->msgidlen);
+
+    if(idx >= 0)
+      continue;
+
+    if(cb->msgidcap == cb->msgidlen) {
+      cb->msgidcap *= 2;
+      cb->msgids = realloc_or_die(cb->msgids, cb->msgidcap * sizeof(*cb->msgids));
+    }
+    cb->msgids[cb->msgidlen++] = cw->msgids[i];
   }
 
-  gauss_jordan(m);
-  print_matrix(m);
-  free_matrix(m);
+  if(cb->cwcap == cb->cwlen) {
+    cb->cwcap *= 2;
+    cb->cws = realloc_or_die(cb->cws, cb->cwcap * sizeof(*cb->cws));
+  }
+  cb->cws[cb->cwlen++] = rlnc_copy_codeword(cw);
+
+  if(cw->wordsz > cb->wordsz)
+    cb->wordsz = cw->wordsz;
+}
+
+static bool decoder_is_ready(struct rlnc_matrix *d) {
+  size_t y, x;
+
+  assert((!d->rows && !d->cols) || d->cols == d->rows * 2);
+
+  for(y = 0; y < d->rows; ++y)
+    for(x = 0; x < (d->cols/2); ++x)
+      if((x == y && d->elems[y][x] != 1)
+      || (x != y && d->elems[y][x] != 0))
+        return false;
+
+  return true;
+}
+
+static struct rlnc_matrix *use_decoder(struct rlnc_matrix *d, struct rlnc_matrix *c) {
+  size_t y, x, k;
+
+  assert(d->cols == d->rows * 2);
+  assert(d->cols == c->rows * 2);
+
+  struct rlnc_matrix *res = make_matrix(c->cols, d->rows);
+
+  d->cols /= 2;
+  for(y = 0; y < d->rows; ++y)
+    d->elems[y] += d->cols;
+
+  for(y = 0; y < c->rows; ++y)
+    for(x = 0; x < c->cols; ++x) {
+      res->elems[y][x] = 0;
+
+      for(k = 0; k < d->cols; ++k)
+        res->elems[y][x] ^= gf256_mul(d->elems[y][k], c->elems[k][x]);
+    }
+
+  for(y = 0; y < d->rows; ++y)
+    d->elems[y] -= d->cols;
+  d->cols *= 2;
+
   return res;
 }
 
-void rlnc_free_cwvector(struct rlnc_cwvector *v) {
+int rlnc_decode_codebook(struct rlnc_codebook *cb) {
+  size_t y, x;
+  struct rlnc_matrix *d = make_matrix(2 * cb->msgidlen, cb->msgidlen);
+  struct rlnc_matrix *c = make_matrix(cb->wordsz, cb->msgidlen);
+  uint8_t **e = d->elems;
+  ssize_t idx;
+
+  if(cb->decoded)
+    free_matrix(cb->decoded);
+  if(cb->decoder)
+    free_matrix(cb->decoder);
+  cb->decoder = d;
+
+  for(y = 0; y < d->rows; ++y) {
+    for(x = 0; x < (d->cols/2); ++x) {
+      idx = idx_in_list(cb->msgids[x], cb->cws[y]->msgids, cb->cws[y]->nwords);
+      e[y][x] = (idx < 0) ? 0 : cb->cws[y]->coeffs[idx];
+    }
+    for(; x < d->cols; ++x)
+      e[y][x] = (x == d->rows+y) ? 1 : 0;
+  }
+
+  for(y = 0; y < c->rows; ++y)
+    for(x = 0; x < c->cols; ++x)
+      c->elems[y][x] = (x < cb->cws[y]->wordsz) ? cb->cws[y]->word[x] : 0;
+
+  //DEBUG
+  puts("Before gauss-jordan:");
+  print_matrix(d);
+  //DEBUG
+
+  gauss_jordan(d);
+
+  //DEBUG
+  puts("After gauss-jordan:");
+  print_matrix(d);
+  puts("c before decoding:");
+  print_matrix(c);
+  //DEBUG
+
+  cb->decoded = use_decoder(d, c);
+
+  //DEBUG
+  puts("c after decoding:");
+  print_matrix(cb->decoded);
+  //DEBUG
+
+  free_matrix(c);
+  return decoder_is_ready(d) ? 0 : -1;
+}
+
+void rlnc_free_codebook(struct rlnc_codebook *cb) {
   size_t i;
 
-  for(i = 0; i < v->len; ++i)
-    rlnc_free_codeword(v->cws[i]);
-  free(v->cws);
-  free(v);
+  for(i = 0; i < cb->cwlen; ++i)
+    rlnc_free_codeword(cb->cws[i]);
+  free(cb->cws);
+  free(cb->msgids);
+  free_matrix(cb->decoder);
+  free_matrix(cb->decoded);
+  free(cb);
 }
