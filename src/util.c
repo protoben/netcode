@@ -14,6 +14,8 @@ void die(int err, const char *fmt, ...) {
   } else {
     fprintf(stderr, "%s\n", buf);
   }
+
+  exit(-1);
 }
 
 void *malloc_or_die(size_t s) {

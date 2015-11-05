@@ -1,7 +1,7 @@
 CC	= gcc
 CFLAGS	= -Wall -g
 LDFLAGS	= -lm
-CPPFLAGS=
+CPPFLAGS= -D_DBG_OUT
 
 %.o: %.c %.h
 	@echo CC $<

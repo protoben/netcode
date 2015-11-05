@@ -37,12 +37,12 @@ void print_rlnc_codeword(struct rlnc_codeword *w) {
   int i;
 
   fputs("\tmsg ids: \t", stdout);
-  for(i = 0; i < w->nwords; ++i)
+  for(i = 0; i < w->wordcnt; ++i)
     printf("%02x ", w->msgids[i]);
   puts("");
 
   fputs("\tcoeffs:  \t", stdout);
-  for(i = 0; i < w->nwords; ++i)
+  for(i = 0; i < w->wordcnt; ++i)
     printf("%02x ", w->coeffs[i]);
   puts("");
 
@@ -62,43 +62,49 @@ void print_rlnc_word(struct rlnc_word *w) {
 }
 
 int main(int argc, char **argv) {
-  int i, err;
+  int i, err, ready;
 
   if(argc < 3) {
-    fprintf(stderr, "Usage: %s <num_encodings> <msg_string> ...\n", argv[0]);
+    fprintf(stderr, "Usage: %s <seed> <msg_string> ...\n", argv[0]);
     return 1;
   }
 
   size_t nmsgs = argc-2;
-  size_t nencs = atoi(argv[1]);
-  struct rlnc_word *msgs[nmsgs];
-  struct rlnc_codeword *encs[nencs];
-  struct rlnc_codebook *cb = NULL;
+  struct rlnc_word msgs[nmsgs];
+  struct rlnc_word dec;
+  struct rlnc_codeword enc;
+  struct rlnc_codebook cb;
+
+  srand(strtoul(argv[1], NULL, 0));
 
   for(i = 0; i < nmsgs; ++i)
-    msgs[i] = rlnc_make_word((uint8_t*)argv[i+2], strlen(argv[i+2]), (i*2)%nmsgs);
+    rlnc_make_word(&msgs[i], (uint8_t*)argv[i+2], strlen(argv[i+2]), i);
 
+  puts("Words to encode:");
   for(i = 0; i < nmsgs; ++i)
-    print_rlnc_word(msgs[i]);
+    print_rlnc_word(&msgs[i]);
 
-  for(i = 0; i < nencs; ++i)
-    encs[i] = rlnc_encode(msgs, nmsgs);
-
-  for(i = 0; i < nencs; ++i) {
+  puts("\nCodewords:");
+  rlnc_make_codebook(&cb);
+  for(i = 0; i < 1000 && (ready = rlnc_decode_codebook(&cb)) < 0; ++i) {
+    rlnc_encode(&enc, msgs, nmsgs);
     printf("%d:", i);
-    print_rlnc_codeword(encs[i]);
+    print_rlnc_codeword(&enc);
+
+    err = rlnc_add_to_codebook(&cb, &enc);
+    if(err)
+      die(0, "Can't add anymore codewords");
+  }
+  printf("Decoded after %d codewords\n", i);
+
+  puts("\nDecoded words:");
+  for(i = 0; i < nmsgs; ++i) {
+    err = rlnc_get_from_codebook(&dec, &cb, i);
+    if(err)
+      die(0, "Unable to decode word %d", i);
+    printf("%d:", i);
+    print_rlnc_word(&dec);
   }
 
-  cb = rlnc_make_codebook(encs, nencs);
-  for(i = 0; i < nencs; ++i)
-    rlnc_add_to_codebook(cb, encs[i]);
-  err = rlnc_decode_codebook(cb);
-  printf("codebook %s ready to decode\n", err ? "is not" : "is");
-
-  for(i = 0; i < nmsgs; ++i)
-    rlnc_free_word(msgs[i]);
-  for(i = 0; i < nencs; ++i)
-    rlnc_free_codeword(encs[i]);
-  rlnc_free_codebook(cb);
   return 0;
 }
