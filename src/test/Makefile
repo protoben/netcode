@@ -13,6 +13,9 @@ tests: $(TESTS)
 gf256.test: gf256.test.c $(DEPENDS)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
+rlnc.test: rlnc.test.c $(DEPENDS)
+	$(CC) $(CPPFLAGS) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+
 run: tests
 	@prove $(patsubst %,./%,$(TESTS))
 

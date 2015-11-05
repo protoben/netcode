@@ -3,14 +3,9 @@ include Defs.mk
 SRCS	= $(filter-out main.c,$(shell echo *.c))
 OBJS	= $(patsubst %.c,%.o,${SRCS})
 
-NAME	= rlnc
-
 .PHONY: all clean test
 
-all: ${NAME}
-
-${NAME}: main.c ${OBJS}
-	${CC} ${CPPFLAGS} ${CFLAGS} -o ${NAME} $^ ${LDFLAGS}
+all: ${OBJS}
 
 test: ${OBJS}
 	${MAKE} -C test run

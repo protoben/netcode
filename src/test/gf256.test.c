@@ -16,5 +16,5 @@ int main(void) {
       diag("Got x (=%#02x) * x^254 (=%#02x) = %#02x", i, c, u);
   }
 
-  return 0;
+  return exit_status();
 }
